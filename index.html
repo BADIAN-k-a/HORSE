@@ -1,10 +1,11 @@
+<!DOCTYPE html>
+<html>
   <head>
     <meta charset="utf-8" />
     <title>AR Bee Animation</title>
     <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <!-- Обязательно подключаем animation-mixer -->
-    <script src="https://cdn.jsdelivr.net/npm/aframe-animation-component@5.1.2/dist/aframe-animation-component.min.js"></script>
   </head>
   <body style="margin: 0; overflow: hidden;">
     <a-scene 
@@ -13,14 +14,23 @@
       
       <a-marker type="pattern" url="patt.patt" preset="custom">
         <a-gltf-model
+          id="bee"
           src="bee.glb"
           position="0 0 0"
-          scale="0.2 0.2 0.2"
-          animation-mixer="clip: Idle; loop: repeat">  <!-- Используем название Idle -->
+          scale="0.21 0.21 0.21">
         </a-gltf-model>
       </a-marker>
       
       <a-entity camera></a-entity>
     </a-scene>
+
+    <script>
+      document.querySelector("#bee").addEventListener("model-loaded", function () {
+        this.setAttribute("animation-mixer", {
+          clip: "Idle",
+          loop: "repeat"
+        });
+      });
+    </script>
   </body>
 </html>
