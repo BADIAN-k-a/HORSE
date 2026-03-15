@@ -1,96 +1,67 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>AR Bee</title>
-    <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+<head>
+<meta charset="utf-8">
+<title>Markerless AR</title>
+<script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
+</head>
 
-    <!-- ИЗМЕНЕНО: используем AR.js как в оригинале — он точно запрашивает камеру -->
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+<body style="margin:0; overflow:hidden;">
+<a-scene
+  renderer="colorManagement:true"
+  xrweb="requiredFeatures: hit-test"
+  webxr="optionalFeatures: hit-test local-floor">
 
-    <style>
-      body { margin: 0; overflow: hidden; }
+  <a-assets>
+    <a-asset-item id="beeModel" src="bee.glb"></a-asset-item>
+  </a-assets>
 
-      /* ДОБАВЛЕНО: подсказка для пользователя */
-      #hint {
-        position: fixed;
-        top: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0,0,0,0.6);
-        color: white;
-        padding: 10px 22px;
-        border-radius: 30px;
-        font-size: 16px;
-        font-family: sans-serif;
-        z-index: 999;
-        pointer-events: none;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="hint">Нажмите на экран чтобы поставить модель</div>
+  <a-camera position="0 1.6 0"></a-camera>
 
-    <!-- ИЗМЕНЕНО: убраны настройки маркерного режима (detectionMode, matrixCodeType)
-         Оставлен минимальный arjs только для запуска камеры -->
-    <a-scene
-      embedded
-      arjs="sourceType: webcam; debugUIEnabled: false;"
-      vr-mode-ui="enabled: false">
+  <a-entity id="reticle"
+            visible="false"
+            position="0 0 -1">
+  </a-entity>
 
-      <!-- ИЗМЕНЕНО: убран a-marker и patt.patt
-           ДОБАВЛЕНО: невидимая горизонтальная плоскость — "пол" для raycaster -->
-      <a-plane
-        id="ground"
-        rotation="-90 0 0"
-        width="100" height="100"
-        material="transparent: true; opacity: 0">
-      </a-plane>
+</a-scene>
 
-      <!-- ДОБАВЛЕНО: модель скрыта до первого тапа, стоит перед камерой -->
-      <a-gltf-model
-        id="bee"
-        src="bee.glb"
-        position="0 0 -2"
-        scale="0.21 0.21 0.21"
-        visible="false">
-      </a-gltf-model>
+<script>
+AFRAME.registerComponent("auto-place",{
+init:function(){
+const scene=this.el.sceneEl
+const reticle=document.querySelector("#reticle")
+const model=document.createElement("a-gltf-model")
 
-      <!-- ИЗМЕНЕНО: добавлен cursor с raycaster для определения точки тапа на плоскости -->
-      <a-entity
-        camera
-        position="0 1.6 0"
-        cursor="rayOrigin: mouse"
-        raycaster="objects: #ground">
-      </a-entity>
+model.setAttribute("src","#beeModel")
+model.setAttribute("scale","0.21 0.21 0.21")
 
-    </a-scene>
+scene.renderer.xr.addEventListener("sessionstart",async()=>{
+const session=scene.renderer.xr.getSession()
+const viewerSpace=await session.requestReferenceSpace("viewer")
+const refSpace=await session.requestReferenceSpace("local")
 
-    <script>
-      // ДОБАВЛЕНО: по тапу перемещаем модель в точку пересечения луча с плоскостью
+const hitTestSource=await session.requestHitTestSource({space:viewerSpace})
 
-      const bee = document.querySelector("#bee");
-      const hint = document.getElementById("hint");
+scene.renderer.setAnimationLoop((t,frame)=>{
+if(!frame)return
+const hits=frame.getHitTestResults(hitTestSource)
+if(hits.length && !model.parentNode){
+const pose=hits[0].getPose(refSpace)
+model.object3D.position.set(
+pose.transform.position.x,
+pose.transform.position.y,
+pose.transform.position.z
+)
+scene.appendChild(model)
+}
+})
+})
+}
+})
 
-      document.querySelector("#ground").addEventListener("click", function (evt) {
-        if (!evt.detail.intersection) return;
+document.querySelector("a-scene").setAttribute("auto-place","")
+</script>
 
-        const point = evt.detail.intersection.point;
-
-        bee.setAttribute("position", {
-          x: point.x,
-          y: point.y,
-          z: point.z
-        });
-        bee.setAttribute("visible", true);
-
-        // ДОБАВЛЕНО: меняем подсказку после первого размещения
-        hint.textContent = "Нажмите ещё раз чтобы переставить";
-      });
-
-      // УБРАНО: model-loaded + animation-mixer (анимация отключена)
-    </script>
-  </body>
+</body>
 </html>
 
