@@ -2,92 +2,94 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>AR Bee Animation</title>
+    <title>AR Bee</title>
     <script src="https://aframe.io/releases/1.4.1/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
 
-    <!-- ИЗМЕНЕНО: убран aframe-ar.js (маркерный AR) -->
-    <!-- ДОБАВЛЕНО: mind-ar для markerless surface tracking -->
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <!-- ИЗМЕНЕНО: используем AR.js как в оригинале — он точно запрашивает камеру -->
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 
     <style>
-      /* ДОБАВЛЕНО: кнопка для размещения модели на поверхности */
-      #place-btn {
+      body { margin: 0; overflow: hidden; }
+
+      /* ДОБАВЛЕНО: подсказка для пользователя */
+      #hint {
         position: fixed;
-        bottom: 30px;
+        top: 20px;
         left: 50%;
         transform: translateX(-50%);
+        background: rgba(0,0,0,0.6);
+        color: white;
+        padding: 10px 22px;
+        border-radius: 30px;
+        font-size: 16px;
+        font-family: sans-serif;
         z-index: 999;
-        padding: 14px 36px;
-        font-size: 18px;
-        background: rgba(255,255,255,0.9);
-        border: none;
-        border-radius: 40px;
-        cursor: pointer;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        pointer-events: none;
       }
     </style>
   </head>
-  <body style="margin: 0; overflow: hidden;">
+  <body>
+    <div id="hint">Нажмите на экран чтобы поставить модель</div>
 
-    <!-- ИЗМЕНЕНО: убраны атрибуты arjs (маркерный режим).
-         ДОБАВЛЕНО: renderer и webxr для AR на поверхности через WebXR Hit Test -->
+    <!-- ИЗМЕНЕНО: убраны настройки маркерного режима (detectionMode, matrixCodeType)
+         Оставлен минимальный arjs только для запуска камеры -->
     <a-scene
       embedded
-      renderer="colorManagement: true"
-      webxr="optionalFeatures: hit-test, local-floor"
-      ar-hit-test="target: #model-anchor">
+      arjs="sourceType: webcam; debugUIEnabled: false;"
+      vr-mode-ui="enabled: false">
 
-      <!-- УБРАНО: a-sound (опционально, можно вернуть) -->
+      <!-- ИЗМЕНЕНО: убран a-marker и patt.patt
+           ДОБАВЛЕНО: невидимая горизонтальная плоскость — "пол" для raycaster -->
+      <a-plane
+        id="ground"
+        rotation="-90 0 0"
+        width="100" height="100"
+        material="transparent: true; opacity: 0">
+      </a-plane>
 
-      <!-- ИЗМЕНЕНО: вместо a-marker используется a-entity с id для позиционирования по hit-test -->
-      <a-entity id="model-anchor" visible="false">
-        <a-gltf-model
-          id="bee"
-          src="bee.glb"
-          position="0 0 0"
-          scale="0.21 0.21 0.21">
-          <!-- УБРАНО: animation-mixer с clip "Idle" — анимация отключена по условию задачи -->
-        </a-gltf-model>
+      <!-- ДОБАВЛЕНО: модель скрыта до первого тапа, стоит перед камерой -->
+      <a-gltf-model
+        id="bee"
+        src="bee.glb"
+        position="0 0 -2"
+        scale="0.21 0.21 0.21"
+        visible="false">
+      </a-gltf-model>
+
+      <!-- ИЗМЕНЕНО: добавлен cursor с raycaster для определения точки тапа на плоскости -->
+      <a-entity
+        camera
+        position="0 1.6 0"
+        cursor="rayOrigin: mouse"
+        raycaster="objects: #ground">
       </a-entity>
 
-      <!-- ИЗМЕНЕНО: убран a-marker, камера теперь управляется WebXR -->
-      <a-entity camera></a-entity>
     </a-scene>
 
-    <!-- ДОБАВЛЕНО: кнопка для фиксации модели на поверхности -->
-    <button id="place-btn">Поставить модель</button>
-
     <script>
-      // ДОБАВЛЕНО: логика hit-test — размещение модели по нажатию кнопки
+      // ДОБАВЛЕНО: по тапу перемещаем модель в точку пересечения луча с плоскостью
 
-      const sceneEl = document.querySelector("a-scene");
-      const anchor = document.querySelector("#model-anchor");
-      const btn = document.getElementById("place-btn");
+      const bee = document.querySelector("#bee");
+      const hint = document.getElementById("hint");
 
-      let placed = false;
+      document.querySelector("#ground").addEventListener("click", function (evt) {
+        if (!evt.detail.intersection) return;
 
-      // Ждём готовности WebXR сессии
-      sceneEl.addEventListener("enter-vr", () => {
-        btn.style.display = "block";
+        const point = evt.detail.intersection.point;
+
+        bee.setAttribute("position", {
+          x: point.x,
+          y: point.y,
+          z: point.z
+        });
+        bee.setAttribute("visible", true);
+
+        // ДОБАВЛЕНО: меняем подсказку после первого размещения
+        hint.textContent = "Нажмите ещё раз чтобы переставить";
       });
 
-      btn.addEventListener("click", () => {
-        if (placed) return;
-
-        // Получаем текущую позицию курсора hit-test и фиксируем модель
-        const hitTestComp = sceneEl.components["ar-hit-test"];
-        if (hitTestComp && hitTestComp.bboxMesh) {
-          const pos = hitTestComp.bboxMesh.position;
-          anchor.setAttribute("position", `${pos.x} ${pos.y} ${pos.z}`);
-          anchor.setAttribute("visible", "true");
-          placed = true;
-          btn.textContent = "Модель размещена ✓";
-          setTimeout(() => btn.style.display = "none", 1500);
-        }
-      });
-
-      // УБРАНО: addEventListener "model-loaded" с animation-mixer
+      // УБРАНО: model-loaded + animation-mixer (анимация отключена)
     </script>
   </body>
 </html>
